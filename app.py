@@ -1,6 +1,6 @@
 """
 Titanic Survival Prediction - Kaggle Grandmaster Streamlit App
-Author: Claude (Kaggle Grandmaster approach)
+Author: 
 Description: Advanced ML pipeline with file upload capability
 """
 
@@ -17,9 +17,15 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.impute import KNNImputer
 from sklearn.base import BaseEstimator, TransformerMixin
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+# Try to import plotly - it might not be available in all environments
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
+    st.warning("Plotly not available. Using matplotlib/seaborn for visualizations.")
 
 # Try to import XGBoost and LightGBM - they might not be available in all environments
 try:
@@ -39,6 +45,15 @@ except ImportError:
 from sklearn.ensemble import GradientBoostingClassifier
 
 warnings.filterwarnings('ignore')
+
+# Set matplotlib style safely
+try:
+    plt.style.use('seaborn-v0_8')
+except:
+    try:
+        plt.style.use('seaborn')
+    except:
+        pass  # Use default style if seaborn not available
 
 # Page configuration
 st.set_page_config(
@@ -442,11 +457,26 @@ def perform_eda(train_df):
         survival_gender = train_df.groupby('Sex')['Survived'].agg(['count', 'mean']).reset_index()
         survival_gender['survival_rate'] = survival_gender['mean'] * 100
         
-        fig = px.bar(survival_gender, x='Sex', y='survival_rate', 
-                    title='Survival Rate by Gender',
-                    labels={'survival_rate': 'Survival Rate (%)'})
-        fig.update_traces(text=survival_gender['survival_rate'].round(1), textposition='outside')
-        st.plotly_chart(fig, use_container_width=True)
+        if PLOTLY_AVAILABLE:
+            fig = px.bar(survival_gender, x='Sex', y='survival_rate', 
+                        title='Survival Rate by Gender',
+                        labels={'survival_rate': 'Survival Rate (%)'})
+            fig.update_traces(text=survival_gender['survival_rate'].round(1), textposition='outside')
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            # Matplotlib fallback
+            fig, ax = plt.subplots(figsize=(8, 6))
+            bars = ax.bar(survival_gender['Sex'], survival_gender['survival_rate'])
+            ax.set_title('Survival Rate by Gender')
+            ax.set_ylabel('Survival Rate (%)')
+            
+            # Add value labels on bars
+            for bar, value in zip(bars, survival_gender['survival_rate']):
+                ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, 
+                       f'{value:.1f}%', ha='center', va='bottom')
+            
+            st.pyplot(fig)
+            plt.close()
     
     with col2:
         # Survival by Class
@@ -454,31 +484,78 @@ def perform_eda(train_df):
         survival_class['survival_rate'] = survival_class['mean'] * 100
         survival_class['Pclass'] = survival_class['Pclass'].astype(str)
         
-        fig = px.bar(survival_class, x='Pclass', y='survival_rate',
-                    title='Survival Rate by Passenger Class',
-                    labels={'survival_rate': 'Survival Rate (%)', 'Pclass': 'Passenger Class'})
-        fig.update_traces(text=survival_class['survival_rate'].round(1), textposition='outside')
-        st.plotly_chart(fig, use_container_width=True)
+        if PLOTLY_AVAILABLE:
+            fig = px.bar(survival_class, x='Pclass', y='survival_rate',
+                        title='Survival Rate by Passenger Class',
+                        labels={'survival_rate': 'Survival Rate (%)', 'Pclass': 'Passenger Class'})
+            fig.update_traces(text=survival_class['survival_rate'].round(1), textposition='outside')
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            # Matplotlib fallback
+            fig, ax = plt.subplots(figsize=(8, 6))
+            bars = ax.bar(survival_class['Pclass'], survival_class['survival_rate'])
+            ax.set_title('Survival Rate by Passenger Class')
+            ax.set_xlabel('Passenger Class')
+            ax.set_ylabel('Survival Rate (%)')
+            
+            # Add value labels on bars
+            for bar, value in zip(bars, survival_class['survival_rate']):
+                ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, 
+                       f'{value:.1f}%', ha='center', va='bottom')
+            
+            st.pyplot(fig)
+            plt.close()
     
     # Age analysis
     col1, col2 = st.columns(2)
     
     with col1:
-        fig = px.histogram(train_df, x='Age', color='Survived', 
-                         title='Age Distribution by Survival',
-                         labels={'Survived': 'Survived'})
-        st.plotly_chart(fig, use_container_width=True)
+        if PLOTLY_AVAILABLE:
+            fig = px.histogram(train_df, x='Age', color='Survived', 
+                             title='Age Distribution by Survival',
+                             labels={'Survived': 'Survived'})
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            # Matplotlib fallback
+            fig, ax = plt.subplots(figsize=(8, 6))
+            
+            # Create histograms for survived and not survived
+            survived = train_df[train_df['Survived'] == 1]['Age'].dropna()
+            not_survived = train_df[train_df['Survived'] == 0]['Age'].dropna()
+            
+            ax.hist([not_survived, survived], bins=20, alpha=0.7, 
+                   label=['Did not survive', 'Survived'], color=['red', 'blue'])
+            ax.set_title('Age Distribution by Survival')
+            ax.set_xlabel('Age')
+            ax.set_ylabel('Count')
+            ax.legend()
+            
+            st.pyplot(fig)
+            plt.close()
     
     with col2:
         # Family size analysis
         train_df['FamilySize'] = train_df['SibSp'] + train_df['Parch'] + 1
         family_survival = train_df.groupby('FamilySize')['Survived'].mean().reset_index()
         
-        fig = px.line(family_survival, x='FamilySize', y='Survived',
-                     title='Survival Rate by Family Size',
-                     labels={'Survived': 'Survival Rate'})
-        fig.update_traces(mode='markers+lines')
-        st.plotly_chart(fig, use_container_width=True)
+        if PLOTLY_AVAILABLE:
+            fig = px.line(family_survival, x='FamilySize', y='Survived',
+                         title='Survival Rate by Family Size',
+                         labels={'Survived': 'Survival Rate'})
+            fig.update_traces(mode='markers+lines')
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            # Matplotlib fallback
+            fig, ax = plt.subplots(figsize=(8, 6))
+            ax.plot(family_survival['FamilySize'], family_survival['Survived'], 
+                   marker='o', linewidth=2, markersize=6)
+            ax.set_title('Survival Rate by Family Size')
+            ax.set_xlabel('Family Size')
+            ax.set_ylabel('Survival Rate')
+            ax.grid(True, alpha=0.3)
+            
+            st.pyplot(fig)
+            plt.close()
     
     return train_df
 
@@ -821,9 +898,23 @@ else:
                     st.subheader("🎯 Top 15 Most Important Features")
                     
                     importance_df = ensemble.feature_importance_.head(15)
-                    fig = px.bar(importance_df, x='importance', y='feature',
-                               orientation='h', title='Feature Importance (Random Forest)')
-                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    if PLOTLY_AVAILABLE:
+                        fig = px.bar(importance_df, x='importance', y='feature',
+                                   orientation='h', title='Feature Importance (Random Forest)')
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        # Matplotlib fallback
+                        fig, ax = plt.subplots(figsize=(10, 8))
+                        bars = ax.barh(importance_df['feature'], importance_df['importance'])
+                        ax.set_title('Feature Importance (Random Forest)')
+                        ax.set_xlabel('Importance')
+                        
+                        # Reverse order to match plotly default
+                        ax.invert_yaxis()
+                        
+                        st.pyplot(fig)
+                        plt.close()
                     
                     # Show the data table
                     st.dataframe(importance_df)
@@ -865,9 +956,20 @@ else:
             with col2:
                 st.subheader("📈 Prediction Distribution")
                 pred_dist = pd.Series(test_predictions).value_counts()
-                fig = px.pie(values=pred_dist.values, names=['Did not survive', 'Survived'],
-                           title='Prediction Distribution')
-                st.plotly_chart(fig, use_container_width=True)
+                
+                if PLOTLY_AVAILABLE:
+                    fig = px.pie(values=pred_dist.values, names=['Did not survive', 'Survived'],
+                               title='Prediction Distribution')
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    # Matplotlib fallback
+                    fig, ax = plt.subplots(figsize=(8, 6))
+                    ax.pie(pred_dist.values, labels=['Did not survive', 'Survived'], 
+                          autopct='%1.1f%%', startangle=90)
+                    ax.set_title('Prediction Distribution')
+                    
+                    st.pyplot(fig)
+                    plt.close()
             
             # Validation and download
             st.subheader("💾 Kaggle Submission")
