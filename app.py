@@ -1,6 +1,6 @@
 """
 Titanic Survival Prediction - Kaggle Grandmaster Streamlit App
-Author: 
+Author: Claude (Kaggle Grandmaster approach)
 Description: Advanced ML pipeline with file upload capability
 """
 
@@ -567,6 +567,14 @@ st.markdown('<div class="grandmaster-badge">🥇 Kaggle Grandmaster Level Approa
 st.sidebar.title("🎛️ Navigation")
 
 # File Upload Section
+# Debug info (remove after fixing)
+if st.sidebar.button("🔍 Debug Info"):
+    st.sidebar.write("Session State Keys:", list(st.session_state.keys()))
+    if 'train_df' in st.session_state:
+        st.sidebar.write("Train shape:", st.session_state['train_df'].shape)
+    if 'test_df' in st.session_state:
+        st.sidebar.write("Test shape:", st.session_state['test_df'].shape)
+
 st.sidebar.markdown("---")
 st.sidebar.subheader("📁 Upload Dataset Files")
 
@@ -630,22 +638,38 @@ if 'train_df' in st.session_state:
 st.sidebar.markdown("---")
 
 # Navigation menu (only show if files are uploaded)
-if 'train_df' in st.session_state:
+if 'train_df' in st.session_state and 'test_df' in st.session_state:
     page = st.sidebar.selectbox("Choose a section:", [
         "🔍 EDA & Insights", 
         "🔧 Feature Engineering", 
         "🤖 Grandmaster ML", 
         "🏆 Final Predictions"
     ])
+    
+    # Show data status
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📊 Data Status")
+    st.sidebar.success(f"✅ Train: {st.session_state['train_df'].shape[0]} rows")
+    st.sidebar.success(f"✅ Test: {st.session_state['test_df'].shape[0]} rows")
+    
+    # Manual refresh if needed
+    if st.sidebar.button("🔄 Refresh App"):
+        st.rerun()
 else:
     page = None
 
 # Load data
 train_df, test_df = load_data_from_files()
 
+# Debug info (remove in production)
+if 'train_df' in st.session_state:
+    train_df = st.session_state['train_df']
+if 'test_df' in st.session_state:
+    test_df = st.session_state['test_df']
+
 # Main content area
-if train_df is None:
-    # Show welcome screen when no files are uploaded
+if train_df is None or test_df is None:
+    # Show welcome screen when files are not fully loaded
     st.markdown("""
     ## 🚢 Welcome to the Titanic Grandmaster Solution!
     
@@ -666,12 +690,12 @@ if train_df is None:
     5. **Interpretability**: Feature importance analysis for model understanding
     
     ### 📁 **Get Started:**
-    1. **Upload train.csv** using the sidebar (👈)
-    2. **Upload test.csv** after train.csv loads
-    3. **Explore sections** using the navigation menu
-    4. **Generate Kaggle submission** ready for leaderboard
-    
     """)
+    
+    if train_df is None:
+        st.warning("👆 Please upload **train.csv** using the sidebar to get started!")
+    elif test_df is None:
+        st.warning("👆 Great! Now please upload **test.csv** to continue with the analysis!")
     
     # Add visual elements showing the approach
     col1, col2, col3 = st.columns(3)
@@ -681,19 +705,12 @@ if train_df is None:
         st.info("🤖 **Stacking Ensemble**\n4 base models + meta-learner")
     with col3:
         st.info("🏆 **Grandmaster Results**\n84-86% expected accuracy")
-    
-    st.warning("👆 Please upload your CSV files using the sidebar to get started!")
-
-elif test_df is None:
-    st.info("✅ Training data loaded! Please upload test.csv to continue.")
-    
-    # Show preview of training data
-    st.subheader("📋 Training Data Preview")
-    st.write(f"**Shape:** {train_df.shape[0]} rows × {train_df.shape[1]} columns")
-    st.dataframe(train_df.head())
 
 else:
-    # Files are loaded, show the main app
+    # Files are loaded, show the main app - ensure we have a page selected
+    if page is None:
+        page = "🔍 EDA & Insights"  # Default page
+    
     if page == "🔍 EDA & Insights":
         perform_eda(train_df)
         
